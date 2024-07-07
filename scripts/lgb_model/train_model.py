@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMRegressor, early_stopping
+from lightgbm import LGBMRegressor, early_stopping, cv, Dataset, log_evaluation
 from sklearn.metrics import ndcg_score
 from sklearn.model_selection import train_test_split
 
@@ -14,6 +14,7 @@ from spark_learning.utils.models import save_model
 from config import X, y
 
 
+# transform categorical data (which are usually objects or strings) into numerical values
 def transform_input_raw(dataset: pd.DataFrame, encoder: (str, CatEncoder), with_label=True, update_encoder=False):
     cat_features = [
         'entity_country', 'entity_region', 'genre', 'sub_genre', 'tag_list',
@@ -38,7 +39,7 @@ def transform_input_raw(dataset: pd.DataFrame, encoder: (str, CatEncoder), with_
             )
 
     time_features = [
-        "date",
+        "date","release_time"
     ]
     for fea in time_features:
         dataset[fea] = (pd.to_datetime(dataset['release_time']).dt.tz_localize(None) - pd.to_datetime(dataset[fea])
@@ -76,17 +77,59 @@ def train_pheat_demo():
     x_eval, y_eval = eval_ds[X], eval_ds[y]
 
     model = LGBMRegressor(
+        num_leaves=100,
+        max_depth=8,
+        min_child_samples=5000,
         objective='regression',
-        learning_rate=0.001,
-        n_estimators=300,
+        learning_rate=0.01,
+        n_estimators=1000,
         verbosity=2,
         random_state=42,
     )
     model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], eval_metric='rmse', callbacks=[
         early_stopping(stopping_rounds=100),
     ])
+    '''
+    params = {
+        'objective': 'regression',
+        'metric': 'rmse',
+        'num_leaves': 31,  # Reduce complexity
+        'learning_rate': 0.1,
+        'min_data_in_leaf': 20,  # Increase to avoid overfitting
+        'min_gain_to_split': 0.01,  # Minimum gain to make a split
+        'max_depth': 7,  # Limit the depth of the tree
+        'subsample': 0.8, 
+        'colsample_bytree': 0.8, 
+    }
+    
+    # Create LightGBM dataset
+    data_train = Dataset(x_train, label=y_train)
 
+    # Define callbacks
+    callbacks = [log_evaluation(period=100),early_stopping(stopping_rounds=100)]
+
+    # Perform cross-validation
+    cv_results = cv(
+        params,
+        data_train,
+        num_boost_round=2000,
+        nfold=5,
+        callbacks=callbacks,
+        metrics='rmse',
+        stratified=False,
+        seed=42,
+    )
+
+    # Print best number of boosting rounds
+    try:
+        best_num_boost_round = len(cv_results['valid rmse-mean'])
+        best_rmse = cv_results['valid rmse-mean'][-1]
+        print(f"Best number of boosting rounds: {best_num_boost_round}")
+        print(f"Best CV RMSE: {best_rmse}")
+    except KeyError as e:
+        print(f"KeyError: {e}. Available keys: {cv_results.keys()}")
     # ------------------ Evaluation ----------------
+    '''
     train_pred = model.predict(x_train)
     eval_pred = model.predict(x_eval)
 
