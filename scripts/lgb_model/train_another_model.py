@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from xgboost import train, cv, DMatrix
+from xgboost import XGBRegressor
 from sklearn.metrics import ndcg_score
 from sklearn.model_selection import train_test_split
 
@@ -75,8 +75,6 @@ def train_pheat_demo():
 
     x_train, y_train = train_ds[X], train_ds[y]
     x_eval, y_eval = eval_ds[X], eval_ds[y]
-    data_train = DMatrix(x_train,label=y_train)
-    data_eval = DMatrix(x_eval,label=y_eval)
     
     params = {
         'objective': 'reg:squarederror',
@@ -89,17 +87,22 @@ def train_pheat_demo():
         'colsample_bytree': 1.0, 
         'seed': 42
     }
-    model = train(
-        params, 
-        data_train,
-        num_boost_round = 1000,
-        evals=[(data_train, 'train'), (data_eval, 'eval')],
-        early_stopping_rounds=50
+    model = XGBRegressor(
+        objective = 'reg:squarederror',
+        eval_metric = 'rmse',
+        eta = 0.02, # Learning rate
+        n_estimators = 90,
+        min_child_weight = 1000,  # Increase to avoid overfitting
+        max_depth = 7,  # Limit the depth of the tree
+        subsample = 1.0, 
+        colsample_bytree = 1.0, 
+        seed = 42
     )
+    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)])
     # ------------------ Evaluation ----------------
     
-    train_pred = model.predict(data_train)
-    eval_pred = model.predict(data_eval)
+    train_pred = model.predict(x_train)
+    eval_pred = model.predict(x_eval)
 
     logging.info({
         "ndcg_score_train": ndcg_score(np.expand_dims(y_train, 0), np.expand_dims(train_pred, 0)),

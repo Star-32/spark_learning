@@ -2,7 +2,7 @@
 # @shiweitong 2024/4/12
 
 import pandas as pd
-from xgboost import Booster, DMatrix
+from xgboost import XGBRegressor
 
 from config import X
 from spark_learning import timeit
@@ -11,13 +11,12 @@ from train_model import transform_input_raw
 
 
 def gen_submit(modelpath, test_x, submit_file="submit.xlsx"):
-    model: Booster = load_model(modelpath)
+    model: XGBRegressor = load_model(modelpath)
 
     df = transform_input_raw(pd.read_excel(test_x), "cat_encoder.dill")
 
     with timeit("predict on test"):
-        data = DMatrix(df[X])
-        pred = model.predict(data)
+        pred = model.predict(df[X])
 
     pred_df = pd.DataFrame({"edition_id": df["edition_id"], "pheat": pred})
 
