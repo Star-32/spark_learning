@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from lightgbm import LGBMRegressor, early_stopping, cv, Dataset, log_evaluation
+from xgboost import train, cv, DMatrix
 from sklearn.metrics import ndcg_score
 from sklearn.model_selection import train_test_split
 
@@ -75,63 +75,31 @@ def train_pheat_demo():
 
     x_train, y_train = train_ds[X], train_ds[y]
     x_eval, y_eval = eval_ds[X], eval_ds[y]
-
-    model = LGBMRegressor(
-        num_leaves=100,
-        max_depth=8,
-        min_child_samples=5000,
-        objective='regression',
-        learning_rate=0.01,
-        n_estimators=5000,
-        verbosity=2,
-        random_state=42,
-    )
-    model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], eval_metric='rmse', callbacks=[
-        early_stopping(stopping_rounds=100),
-    ])
-    '''
-    params = {
-        'objective': 'regression',
-        'metric': 'rmse',
-        'num_leaves': 31,  # Reduce complexity
-        'learning_rate': 0.01,
-        'min_data_in_leaf': 20,  # Increase to avoid overfitting
-        'min_gain_to_split': 0.01,  # Minimum gain to make a split
-        'max_depth': 7,  # Limit the depth of the tree
-        'subsample': 0.8, 
-        'colsample_bytree': 0.8, 
-    }
+    data_train = DMatrix(x_train,label=y_train)
+    data_eval = DMatrix(x_eval,label=y_eval)
     
-    # Create LightGBM dataset
-    data_train = Dataset(x_train, label=y_train)
-
-    # Define callbacks
-    callbacks = [log_evaluation(period=500),early_stopping(stopping_rounds=100)]
-
-    # Perform cross-validation
-    cv_results = cv(
-        params,
+    params = {
+        'objective': 'reg:squarederror',
+        'eval_metric': 'rmse',
+        'eta': 0.02, # Learning rate
+        'n_estimators': 1000,
+        'min_child_weight': 1000,  # Increase to avoid overfitting
+        'max_depth': 7,  # Limit the depth of the tree
+        'subsample': 1.0, 
+        'colsample_bytree': 1.0, 
+        'seed': 42
+    }
+    model = train(
+        params, 
         data_train,
-        num_boost_round=5000,
-        nfold=5,
-        callbacks=callbacks,
-        metrics='rmse',
-        stratified=False,
-        seed=42,
+        num_boost_round = 1000,
+        evals=[(data_train, 'train'), (data_eval, 'eval')],
+        early_stopping_rounds=50
     )
-
-    # Print best number of boosting rounds
-    try:
-        best_num_boost_round = len(cv_results['valid rmse-mean'])
-        best_rmse = cv_results['valid rmse-mean'][-1]
-        print(f"Best number of boosting rounds: {best_num_boost_round}")
-        print(f"Best CV RMSE: {best_rmse}")
-    except KeyError as e:
-        print(f"KeyError: {e}. Available keys: {cv_results.keys()}")
     # ------------------ Evaluation ----------------
-    '''
-    train_pred = model.predict(x_train)
-    eval_pred = model.predict(x_eval)
+    
+    train_pred = model.predict(data_train)
+    eval_pred = model.predict(data_eval)
 
     logging.info({
         "ndcg_score_train": ndcg_score(np.expand_dims(y_train, 0), np.expand_dims(train_pred, 0)),
