@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 
 from spark_learning.CatEncoder import CatEncoder
 from spark_learning.utils.models import save_model
-from config import X, y
+from another_config import X, y
 
 
 # transform categorical data (which are usually objects or strings) into numerical values
@@ -45,12 +45,20 @@ def transform_input_raw(dataset: pd.DataFrame, encoder: (str, CatEncoder), with_
         dataset[fea] = (pd.to_datetime(dataset['release_time']).dt.tz_localize(None) - pd.to_datetime(dataset[fea])
                         ).dt.days
 
+    dataset = dataset.sort_values(by=['edition_id','date'])
+    dataset['mean_wishlist_rank'] = dataset.groupby('edition_id')['wishlist_rank'].transform('mean')
+    dataset['change_wishlist_rank'] = dataset.wishlist_rank-dataset.mean_wishlist_rank
+    dataset['wishlist_rank_diff'] = dataset.groupby('edition_id')['wishlist_rank'].diff()
+    dataset['wishlist_rank_change_rate'] = dataset['wishlist_rank_diff'] / dataset.groupby('edition_id')['wishlist_rank'].shift(1)
+
     return dataset
 
 
 def train_pheat_demo():
     logging.info("loading training data")
-    dataset = pd.read_excel("../../data/train.xlsx")
+    dataset_1 = pd.read_excel("../../data/40_train.xlsx")
+    dataset_2 = pd.read_excel("../../data/train.xlsx")
+    dataset = pd.concat([dataset_1,dataset_2])
 
     dataset = transform_input_raw(dataset, "cat_encoder.dill", update_encoder=True)
 
@@ -68,7 +76,7 @@ def train_pheat_demo():
     )
     logging.info(f"games for train: {len(games_train)}, games for test: {len(games_test)}")
 
-    train_ds = dataset[dataset["edition_id"].isin(games_train)]
+    train_ds = dataset[(dataset["edition_id"].isin(games_train))&(dataset['EA_pcu']<=4)]
     eval_ds = dataset[dataset["edition_id"].isin(games_test)]
 
     logging.info(f"Train: {len(train_ds)}, Eval {len(eval_ds)}")
@@ -91,7 +99,7 @@ def train_pheat_demo():
         objective = 'reg:squarederror',
         eval_metric = 'rmse',
         eta = 0.02, # Learning rate
-        n_estimators = 90,
+        n_estimators = 100,
         min_child_weight = 1000,  # Increase to avoid overfitting
         max_depth = 7,  # Limit the depth of the tree
         subsample = 1.0, 

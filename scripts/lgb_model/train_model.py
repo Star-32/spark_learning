@@ -8,6 +8,7 @@ import pandas as pd
 from lightgbm import LGBMRegressor, early_stopping, cv, Dataset, log_evaluation
 from sklearn.metrics import ndcg_score
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
 
 from spark_learning.CatEncoder import CatEncoder
 from spark_learning.utils.models import save_model
@@ -45,15 +46,32 @@ def transform_input_raw(dataset: pd.DataFrame, encoder: (str, CatEncoder), with_
         dataset[fea] = (pd.to_datetime(dataset['release_time']).dt.tz_localize(None) - pd.to_datetime(dataset[fea])
                         ).dt.days
 
+    for fea in dataset.columns:
+        if dataset[fea].dtype != 'object':
+            new_column = dataset.groupby('edition_id')[fea].transform('mean')
+            dataset[fea].fillna(new_column)
+
+    dataset = dataset.sort_values(by=['edition_id','date'])
+    dataset['mean_wishlist_rank'] = dataset.groupby('edition_id')['wishlist_rank'].transform('mean')
+    dataset['change_wishlist_rank'] = dataset.wishlist_rank-dataset.mean_wishlist_rank
+    dataset['wishlist_rank_diff'] = dataset.groupby('edition_id')['wishlist_rank'].diff()
+    dataset['wishlist_rank_change_rate'] = dataset['wishlist_rank_diff'] / dataset.groupby('edition_id')['wishlist_rank'].shift(1)
+    dataset['cat_pcu_mean'] = dataset.groupby('genre')['EA_pcu'].transform('median')
+    dataset['cat_pcu_val'] = dataset['EA_pcu'] / dataset['cat_pcu_mean']
+    dataset['cat_pcu_val'] = dataset['cat_pcu_val'].fillna(dataset['cat_pcu_val'].median())
+    scaler = MinMaxScaler()
+    subdf = dataset['cat_pcu_val'].to_frame(name='p')
+    dataset['cat_pcu_val'] = scaler.fit_transform(subdf)
     return dataset
 
 
 def train_pheat_demo():
     logging.info("loading training data")
-    dataset = pd.read_excel("../../data/train.xlsx")
+    dataset_1 = pd.read_excel("../../data/40_train.xlsx")
+    dataset_2 = pd.read_excel("../../data/train.xlsx")
+    dataset = pd.concat([dataset_1,dataset_2])
 
     dataset = transform_input_raw(dataset, "cat_encoder.dill", update_encoder=True)
-
     main_dataset = dataset[~dataset["wishlist_rank"].isna()]
     supplement_dataset = dataset[dataset["wishlist_rank"].isna()]
     main_games = main_dataset["edition_id"].unique()
@@ -84,10 +102,11 @@ def train_pheat_demo():
         learning_rate=0.01,
         n_estimators=5000,
         verbosity=2,
+        subsample = 0.8, 
         random_state=42,
     )
     model.fit(x_train, y_train, eval_set=[(x_eval, y_eval)], eval_metric='rmse', callbacks=[
-        early_stopping(stopping_rounds=100),
+        early_stopping(stopping_rounds=50),
     ])
     '''
     params = {

@@ -4,13 +4,13 @@
 import pandas as pd
 from xgboost import XGBRegressor
 
-from config import X
+from another_config import X
 from spark_learning import timeit
 from spark_learning.utils.models import load_model
 from train_model import transform_input_raw
 
 
-def gen_submit(modelpath, test_x, submit_file="submit.xlsx"):
+def gen_submit(modelpath, test_x, submit_file="submit2.xlsx"):
     model: XGBRegressor = load_model(modelpath)
 
     df = transform_input_raw(pd.read_excel(test_x), "cat_encoder.dill")
@@ -29,4 +29,4 @@ if __name__ == '__main__':
 
     config_logging()
 
-    gen_submit("lgb.dill", "../../data/test_X.xlsx")
+    gen_submit("lgb.dill", "../../data/submit_test_X.xlsx")

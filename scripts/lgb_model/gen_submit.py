@@ -29,4 +29,4 @@ if __name__ == '__main__':
 
     config_logging()
 
-    gen_submit("lgb.dill", "../../data/test_X.xlsx")
+    gen_submit("lgb.dill", "../../data/submit_test_X.xlsx")
