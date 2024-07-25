@@ -13,7 +13,8 @@ X = [
     # 'followers_total',
     'release_time', 'date',
     'developer_revenue_p1_year',
-    # 'publisher_revenue_p1_year',
+    'publisher_revenue_p1_year',
+    'expert3_score',
     'is_EA','EA_units_sold','EA_acu','EA_pcu','cat_pcu_val'
 ]
 

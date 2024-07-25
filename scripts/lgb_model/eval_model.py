@@ -29,4 +29,4 @@ if __name__ == '__main__':
 
     config_logging()
 
-    eval_model("results.xlsx", "../../data/test_y.xlsx")
+    eval_model("submit.xlsx", "../../data/test_y.xlsx")

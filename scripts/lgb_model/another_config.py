@@ -14,7 +14,7 @@ X = [
     'date',
     # 'developer_revenue_p1_year',
     'publisher_revenue_p1_year',
-    'EA_pcu',
+    'cat_pcu_val',
 ]
 
 y = "pheat"
